@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>아레나 슈팅 대결</title>
+<style>
+  :root{
+    --bg:#12181A;
+    --panel:#1B2427;
+    --gold:#C9A227;
+    --a-color:#3B7DD8;
+    --a-bg:#16233A;
+    --b-color:#D8543B;
+    --b-bg:#3A1E16;
+    --text:#EDEAE1;
+    --text-dim:#9AA0A3;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    display:flex;
+    justify-content:center;
+    padding:24px 16px 60px;
+  }
+  .wrap{width:100%;max-width:520px}
+  h1{font-size:20px;font-weight:600;text-align:center;margin:0 0 4px;letter-spacing:0.5px}
+  .subtitle{text-align:center;color:var(--text-dim);font-size:13px;margin:0 0 24px}
+  .panel{background:var(--panel);border-radius:12px;padding:18px;margin-bottom:16px;border:1px solid #2A3538}
+  .row{display:flex;gap:8px;margin-bottom:10px}
+  input[type=text]{flex:1;background:#0F1517;border:1px solid #2A3538;color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px}
+  button{background:var(--gold);color:#1A1206;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+  button.secondary{background:transparent;color:var(--text);border:1px solid #3A4548}
+  button:disabled{opacity:0.4;cursor:not-allowed}
+  .peer-id-box{background:#0F1517;border:1px dashed var(--gold);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:14px;text-align:center;margin-bottom:10px;word-break:break-all}
+  .status-line{text-align:center;font-size:13px;color:var(--text-dim);margin-bottom:6px}
+  .hint{font-size:12px;color:var(--text-dim);text-align:center;margin-top:10px}
+  #arenaSelect, #gameArea{display:none}
+  .arena-options{display:flex;gap:10px;margin:14px 0}
+  .arena-card{flex:1;background:#0F1517;border:2px solid #2A3538;border-radius:10px;padding:14px;text-align:center;cursor:pointer}
+  .arena-card.chosen{border-color:var(--gold)}
+  .arena-card svg{display:block;margin:0 auto 8px}
+  .hud{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .hp-box{flex:1}
+  .hp-name{font-size:12px;margin-bottom:4px}
+  .hp-bar-bg{background:#0F1517;border-radius:6px;height:10px;overflow:hidden}
+  .hp-bar-fill{height:100%;transition:width 0.1s}
+  .hp-fill-a{background:var(--a-color)}
+  .hp-fill-b{background:var(--b-color)}
+  canvas{display:block;margin:0 auto;background:#0F1517;border-radius:10px;border:1px solid #2A3538;touch-action:none}
+  .controls-hint{text-align:center;font-size:12px;color:var(--text-dim);margin-top:10px}
+  .overlay{
+    position:relative;
+  }
+  .gameover-box{
+    text-align:center;
+    margin-top:14px;
+  }
+  .gameover-box .winner{font-size:22px;font-weight:700;color:var(--gold);margin-bottom:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>아레나 슈팅 대결</h1>
+  <p class="subtitle">이동하고 조준해서 상대 체력을 먼저 0으로 만드세요</p>
+
+  <div class="panel" id="lobby">
+    <div class="row">
+      <button id="hostBtn" style="flex:1">방 만들기</button>
+      <button id="joinBtn" class="secondary" style="flex:1">참가하기</button>
+    </div>
+    <div id="hostSection" style="display:none">
+      <div class="status-line">이 코드를 친구에게 보내주세요</div>
+      <div class="peer-id-box" id="myPeerId">연결 준비 중...</div>
+      <button id="copyIdBtn" class="secondary" style="width:100%">코드 복사</button>
+    </div>
+    <div id="joinSection" style="display:none">
+      <div class="row"><input type="text" id="joinInput" placeholder="친구의 코드를 입력하세요"></div>
+      <button id="connectBtn" style="width:100%">연결하기</button>
+    </div>
+    <div class="status-line" id="connStatus" style="margin-top:10px"></div>
+    <p class="hint">파일을 더블클릭해서 열면(file://) 연결이 안 될 수 있어요. GitHub Pages에 올리거나, 이 폴더에서 <code>python3 -m http.server</code> 실행 후 <code>http://localhost:8000</code>으로 접속해주세요.</p>
+  </div>
+
+  <div class="panel" id="arenaSelect">
+    <div class="status-line" id="arenaStatus">경기장을 선택하세요</div>
+    <div class="arena-options">
+      <div class="arena-card" id="arenaRectCard">
+        <svg width="60" height="40"><rect x="4" y="4" width="52" height="32" fill="none" stroke="#C9A227" stroke-width="2"/></svg>
+        사각형 경기장
+      </div>
+      <div class="arena-card" id="arenaCircleCard">
+        <svg width="60" height="40"><circle cx="30" cy="20" r="17" fill="none" stroke="#C9A227" stroke-width="2"/></svg>
+        원형 경기장
+      </div>
+    </div>
+    <button id="startGameBtn" style="width:100%">게임 시작</button>
+  </div>
+
+  <div id="gameArea">
+    <div class="hud">
+      <div class="hp-box">
+        <div class="hp-name" style="color:var(--a-color)">A</div>
+        <div class="hp-bar-bg"><div class="hp-bar-fill hp-fill-a" id="hpA" style="width:100%"></div></div>
+      </div>
+      <div class="hp-box">
+        <div class="hp-name" style="color:var(--b-color);text-align:right">B</div>
+        <div class="hp-bar-bg"><div class="hp-bar-fill hp-fill-b" id="hpB" style="width:100%"></div></div>
+      </div>
+    </div>
+    <canvas id="canvas" width="480" height="320"></canvas>
+    <p class="controls-hint">이동: WASD &nbsp;·&nbsp; 조준: 마우스 &nbsp;·&nbsp; 사격: 클릭 &nbsp;·&nbsp; 대시: Shift &nbsp;·&nbsp; 강공격: Q</p>
+    <div class="gameover-box" id="gameoverBox" style="display:none">
+      <div class="winner" id="winnerText"></div>
+      <button id="restartBtn">다시 시작</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+const W=480, H=320, CENTER={x:240,y:160}, CIRCLE_R=150;
+const PLAYER_R=14, PLAYER_SPEED=170;
+const BULLET_R=4, BULLET_SPEED=380, BULLET_DMG=10, BULLET_COOLDOWN=300;
+const HEAVY_R=7, HEAVY_SPEED=460, HEAVY_DMG=28, HEAVY_COOLDOWN=1700;
+const DASH_DURATION=160, DASH_MULT=3.2, DASH_INVULN=300, DASH_COOLDOWN=2600;
+const OBSTACLE_R=15, OBSTACLE_SPEED=110, OBSTACLE_DMG=14, OBSTACLE_INVULN=700;
+const NUM_OBSTACLES=3;
+const MAX_HP=100;
+
+let peer, conn, myRole, isHost=false;
+let arenaChoice='rect';
+let sim=null;
+let localInput={up:false,down:false,left:false,right:false,angle:0,shoot:false,dash:false,heavy:false};
+let remoteInput={up:false,down:false,left:false,right:false,angle:0,shoot:false,dash:false,heavy:false};
+let lastFrameTime=0;
+let frameCounter=0;
+let running=false;
+
+function newPlayer(role){
+  const startX = role==='A' ? (arenaChoice==='rect'? 60 : CENTER.x-90) : (arenaChoice==='rect'? W-60 : CENTER.x+90);
+  const startY = arenaChoice==='rect' ? H/2 : CENTER.y;
+  return {
+    role, x:startX, y:startY, angle: role==='A'?0:Math.PI,
+    hp: MAX_HP, alive:true,
+    lastShot:-9999, lastHeavy:-9999, lastDash:-9999,
+    dashUntil:0, invulnUntil:0
+  };
+}
+
+function newObstacle(i){
+  const angle = Math.random()*Math.PI*2;
+  const speed = OBSTACLE_SPEED*(0.7+Math.random()*0.6);
+  let x,y;
+  if(arenaChoice==='rect'){
+    x = 40+Math.random()*(W-80);
+    y = 40+Math.random()*(H-80);
+  } else {
+    const r = Math.random()*(CIRCLE_R-40);
+    x = CENTER.x+Math.cos(angle)*r;
+    y = CENTER.y+Math.sin(angle)*r;
+  }
+  return {id:i, x, y, r:OBSTACLE_R, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed, hitUntil:{A:0,B:0}};
+}
+
+function initSim(){
+  const obstacles=[];
+  for(let i=0;i<NUM_OBSTACLES;i++) obstacles.push(newObstacle(i));
+  return {
+    arena: arenaChoice,
+    players:{A:newPlayer('A'), B:newPlayer('B')},
+    bullets:[],
+    obstacles,
+    gameOver:null,
+    t:0
+  };
+}
+
+function clampToArena(p, r, arena){
+  if(arena==='rect'){
+    p.x=Math.max(r,Math.min(W-r,p.x));
+    p.y=Math.max(r,Math.min(H-r,p.y));
+  } else {
+    const dx=p.x-CENTER.x, dy=p.y-CENTER.y;
+    const dist=Math.hypot(dx,dy)||0.0001;
+    const maxD=CIRCLE_R-r;
+    if(dist>maxD){
+      const scale=maxD/dist;
+      p.x=CENTER.x+dx*scale;
+      p.y=CENTER.y+dy*scale;
+    }
+  }
+}
+
+function obstacleBounce(o, arena){
+  if(arena==='rect'){
+    if(o.x-o.r<0){o.x=o.r;o.vx=Math.abs(o.vx);}
+    if(o.x+o.r>W){o.x=W-o.r;o.vx=-Math.abs(o.vx);}
+    if(o.y-o.r<0){o.y=o.r;o.vy=Math.abs(o.vy);}
+    if(o.y+o.r>H){o.y=H-o.r;o.vy=-Math.abs(o.vy);}
+  } else {
+    const dx=o.x-CENTER.x, dy=o.y-CENTER.y;
+    const dist=Math.hypot(dx,dy)||0.0001;
+    const maxD=CIRCLE_R-o.r;
+    if(dist>maxD){
+      const nx=dx/dist, ny=dy/dist;
+      const dot=o.vx*nx+o.vy*ny;
+      o.vx-=2*dot*nx; o.vy-=2*dot*ny;
+      const scale=maxD/dist;
+      o.x=CENTER.x+dx*scale; o.y=CENTER.y+dy*scale;
+    }
+  }
+}
+
+function stepPlayer(p, input, dt, now){
+  if(!p.alive) return;
+  let mult = 1;
+  if(now < p.dashUntil) mult = DASH_MULT;
+  let dx=0, dy=0;
+  if(input.up) dy-=1;
+  if(input.down) dy+=1;
+  if(input.left) dx-=1;
+  if(input.right) dx+=1;
+  const len=Math.hypot(dx,dy);
+  if(len>0){ dx/=len; dy/=len; }
+  p.x += dx*PLAYER_SPEED*mult*dt;
+  p.y += dy*PLAYER_SPEED*mult*dt;
+  clampToArena(p, PLAYER_R, sim.arena);
+  p.angle = input.angle;
+
+  if(input.dash && now-p.lastDash > DASH_COOLDOWN){
+    p.lastDash = now;
+    p.dashUntil = now + DASH_DURATION;
+    p.invulnUntil = now + DASH_INVULN;
+  }
+  if(input.shoot && now-p.lastShot > BULLET_COOLDOWN){
+    p.lastShot = now;
+    sim.bullets.push({
+      x:p.x+Math.cos(p.angle)*(PLAYER_R+4), y:p.y+Math.sin(p.angle)*(PLAYER_R+4),
+      vx:Math.cos(p.angle)*BULLET_SPEED, vy:Math.sin(p.angle)*BULLET_SPEED,
+      r:BULLET_R, dmg:BULLET_DMG, owner:p.role
+    });
+  }
+  if(input.heavy && now-p.lastHeavy > HEAVY_COOLDOWN){
+    p.lastHeavy = now;
+    sim.bullets.push({
+      x:p.x+Math.cos(p.angle)*(PLAYER_R+4), y:p.y+Math.sin(p.angle)*(PLAYER_R+4),
+      vx:Math.cos(p.angle)*HEAVY_SPEED, vy:Math.sin(p.angle)*HEAVY_SPEED,
+      r:HEAVY_R, dmg:HEAVY_DMG, owner:p.role
+    });
+  }
+}
+
+function stepSim(dt){
+  const now = performance.now();
+  sim.t += dt;
+  stepPlayer(sim.players.A, isHost?localInput:remoteInput, dt, now);
+  stepPlayer(sim.players.B, isHost?remoteInput:localInput, dt, now);
+
+  sim.bullets.forEach(b=>{ b.x+=b.vx*dt; b.y+=b.vy*dt; });
+  sim.bullets = sim.bullets.filter(b=>{
+    if(sim.arena==='rect'){
+      if(b.x<0||b.x>W||b.y<0||b.y>H) return false;
+    } else {
+      if(Math.hypot(b.x-CENTER.x,b.y-CENTER.y)>CIRCLE_R) return false;
+    }
+    return true;
+  });
+
+  sim.bullets = sim.bullets.filter(b=>{
+    let consumed=false;
+    ['A','B'].forEach(role=>{
+      if(consumed) return;
+      const p=sim.players[role];
+      if(role===b.owner || !p.alive) return;
+      if(now < p.invulnUntil) return;
+      if(Math.hypot(p.x-b.x,p.y-b.y) < PLAYER_R+b.r){
+        p.hp -= b.dmg;
+        consumed=true;
+        if(p.hp<=0){ p.hp=0; p.alive=false; sim.gameOver = role==='A' ? 'B' : 'A'; }
+      }
+    });
+    return !consumed;
+  });
+
+  sim.obstacles.forEach(o=>{
+    o.x+=o.vx*dt; o.y+=o.vy*dt;
+    obstacleBounce(o, sim.arena);
+    ['A','B'].forEach(role=>{
+      const p=sim.players[role];
+      if(!p.alive || now<p.invulnUntil) return;
+      if(now < (o.hitUntil[role]||0)) return;
+      if(Math.hypot(p.x-o.x,p.y-o.y) < PLAYER_R+o.r){
+        p.hp -= OBSTACLE_DMG;
+        o.hitUntil[role] = now+OBSTACLE_INVULN;
+        p.invulnUntil = now+250;
+        const dx=p.x-o.x, dy=p.y-o.y, d=Math.hypot(dx,dy)||0.0001;
+        p.x += (dx/d)*18; p.y += (dy/d)*18;
+        clampToArena(p, PLAYER_R, sim.arena);
+        if(p.hp<=0){ p.hp=0; p.alive=false; sim.gameOver = role==='A'?'B':'A'; }
+      }
+    });
+  });
+}
+
+function render(){
+  const ctx=document.getElementById('canvas').getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='#2A3538';
+  ctx.lineWidth=2;
+  if(sim.arena==='rect'){
+    ctx.strokeRect(1,1,W-2,H-2);
+  } else {
+    ctx.beginPath();
+    ctx.arc(CENTER.x,CENTER.y,CIRCLE_R,0,Math.PI*2);
+    ctx.stroke();
+  }
+
+  sim.obstacles.forEach(o=>{
+    ctx.fillStyle='#5F5E5A';
+    ctx.beginPath();
+    ctx.arc(o.x,o.y,o.r,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  sim.bullets.forEach(b=>{
+    ctx.fillStyle = b.owner==='A' ? '#3B7DD8' : '#D8543B';
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  ['A','B'].forEach(role=>{
+    const p=sim.players[role];
+    if(!p.alive) return;
+    const now=performance.now();
+    ctx.globalAlpha = now<p.invulnUntil ? 0.5 : 1;
+    ctx.fillStyle = role==='A' ? '#3B7DD8' : '#D8543B';
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,PLAYER_R,0,Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle='#EDEAE1';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(p.x,p.y);
+    ctx.lineTo(p.x+Math.cos(p.angle)*(PLAYER_R+8), p.y+Math.sin(p.angle)*(PLAYER_R+8));
+    ctx.stroke();
+    ctx.globalAlpha=1;
+  });
+
+  document.getElementById('hpA').style.width = Math.max(0,sim.players.A.hp)+'%';
+  document.getElementById('hpB').style.width = Math.max(0,sim.players.B.hp)+'%';
+
+  if(sim.gameOver && document.getElementById('gameoverBox').style.display==='none'){
+    document.getElementById('winnerText').textContent = sim.gameOver+' 승리!';
+    document.getElementById('gameoverBox').style.display='block';
+    document.getElementById('restartBtn').style.display = isHost ? 'inline-block' : 'none';
+    if(!isHost) document.getElementById('winnerText').textContent += ' (다시 시작은 방장만 가능해요)';
+  }
+  if(!sim.gameOver){
+    document.getElementById('gameoverBox').style.display='none';
+  }
+}
+
+function gameLoop(ts){
+  if(!running) return;
+  if(!lastFrameTime) lastFrameTime=ts;
+  const dt=Math.min(0.05,(ts-lastFrameTime)/1000);
+  lastFrameTime=ts;
+
+  if(isHost && !sim.gameOver){
+    stepSim(dt);
+  }
+  render();
+
+  frameCounter++;
+  if(frameCounter % 2 === 0){
+    if(isHost) conn.send({type:'snapshot', sim});
+    else conn.send({type:'input', input:localInput});
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+function setupCanvasControls(){
+  const canvas=document.getElementById('canvas');
+  const keyMap={KeyW:'up',KeyS:'down',KeyA:'left',KeyD:'right'};
+  window.addEventListener('keydown', e=>{
+    if(keyMap[e.code]){ localInput[keyMap[e.code]]=true; e.preventDefault(); }
+    if(e.code==='ShiftLeft'||e.code==='ShiftRight'){ localInput.dash=true; e.preventDefault(); }
+    if(e.code==='KeyQ'){ localInput.heavy=true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', e=>{
+    if(keyMap[e.code]) localInput[keyMap[e.code]]=false;
+    if(e.code==='ShiftLeft'||e.code==='ShiftRight') localInput.dash=false;
+    if(e.code==='KeyQ') localInput.heavy=false;
+  });
+  canvas.addEventListener('mousemove', e=>{
+    const rect=canvas.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(W/rect.width);
+    const my=(e.clientY-rect.top)*(H/rect.height);
+    const me = sim ? sim.players[myRole] : null;
+    if(me) localInput.angle = Math.atan2(my-me.y, mx-me.x);
+  });
+  canvas.addEventListener('mousedown', ()=>{ localInput.shoot=true; });
+  canvas.addEventListener('mouseup', ()=>{ localInput.shoot=false; });
+  canvas.addEventListener('mouseleave', ()=>{ localInput.shoot=false; });
+}
+
+function startMatch(){
+  document.getElementById('arenaSelect').style.display='none';
+  document.getElementById('gameArea').style.display='block';
+  document.getElementById('gameoverBox').style.display='none';
+  sim = initSim();
+  frameCounter=0;
+  lastFrameTime=0;
+  running=true;
+  requestAnimationFrame(gameLoop);
+}
+
+document.getElementById('arenaRectCard').onclick=()=>{
+  arenaChoice='rect';
+  document.getElementById('arenaRectCard').classList.add('chosen');
+  document.getElementById('arenaCircleCard').classList.remove('chosen');
+};
+document.getElementById('arenaCircleCard').onclick=()=>{
+  arenaChoice='circle';
+  document.getElementById('arenaCircleCard').classList.add('chosen');
+  document.getElementById('arenaRectCard').classList.remove('chosen');
+};
+document.getElementById('arenaRectCard').click();
+
+document.getElementById('startGameBtn').onclick=()=>{
+  if(!isHost) return;
+  conn.send({type:'start', arena:arenaChoice});
+  startMatch();
+};
+
+document.getElementById('restartBtn').onclick=()=>{
+  if(!isHost) return;
+  conn.send({type:'start', arena:arenaChoice});
+  startMatch();
+};
+
+function goToArenaSelect(){
+  document.getElementById('lobby').style.display='none';
+  document.getElementById('arenaSelect').style.display='block';
+  document.getElementById('arenaStatus').textContent = isHost ? '경기장을 선택하고 시작을 눌러주세요' : '방장이 경기장을 고르는 중...';
+  document.getElementById('startGameBtn').style.display = isHost ? 'block' : 'none';
+}
+
+function setupConnHandlers(c){
+  conn=c;
+  conn.on('open', ()=>{
+    document.getElementById('connStatus').textContent='연결됨.';
+    setupCanvasControls();
+    goToArenaSelect();
+  });
+  conn.on('data', (data)=>{
+    if(!data || !data.type) return;
+    if(data.type==='start'){
+      arenaChoice=data.arena;
+      startMatch();
+    } else if(data.type==='snapshot' && !isHost){
+      sim = data.sim;
+    } else if(data.type==='input' && isHost){
+      remoteInput = data.input;
+    }
+  });
+  conn.on('close', ()=>{
+    document.getElementById('connStatus').textContent='연결이 끊어졌습니다.';
+    running=false;
+  });
+  conn.on('error', (err)=>{
+    document.getElementById('connStatus').textContent='연결 오류: '+(err&&err.message?err.message:err);
+    console.error('conn error', err);
+  });
+}
+
+document.getElementById('hostBtn').onclick=()=>{
+  isHost=true; myRole='A';
+  document.getElementById('hostSection').style.display='block';
+  document.getElementById('joinSection').style.display='none';
+  peer=new Peer();
+  peer.on('open', id=>{ document.getElementById('myPeerId').textContent=id; });
+  peer.on('connection', c=>{ setupConnHandlers(c); });
+  peer.on('error', err=>{
+    document.getElementById('myPeerId').textContent='연결 오류가 발생했어요';
+    document.getElementById('connStatus').textContent=String(err&&err.message?err.message:err);
+    console.error('peer error', err);
+  });
+};
+
+document.getElementById('joinBtn').onclick=()=>{
+  isHost=false; myRole='B';
+  document.getElementById('joinSection').style.display='block';
+  document.getElementById('hostSection').style.display='none';
+  peer=new Peer();
+  peer.on('error', err=>{
+    document.getElementById('connStatus').textContent=String(err&&err.message?err.message:err);
+    console.error('peer error', err);
+  });
+};
+
+document.getElementById('connectBtn').onclick=()=>{
+  const targetId=document.getElementById('joinInput').value.trim();
+  if(!targetId) return;
+  document.getElementById('connStatus').textContent='연결 중...';
+  const tryConnect=()=>{
+    const c=peer.connect(targetId);
+    c.on('error', err=>{
+      document.getElementById('connStatus').textContent='연결 실패: '+(err&&err.message?err.message:err);
+      console.error('connect error', err);
+    });
+    setupConnHandlers(c);
+  };
+  if(peer.open) tryConnect();
+  else peer.on('open', tryConnect);
+};
+
+document.getElementById('copyIdBtn').onclick=()=>{
+  const id=document.getElementById('myPeerId').textContent;
+  navigator.clipboard.writeText(id).then(()=>{
+    document.getElementById('copyIdBtn').textContent='복사됨!';
+    setTimeout(()=>{ document.getElementById('copyIdBtn').textContent='코드 복사'; },1500);
+  });
+};
+</script>
+</body>
+</html>
