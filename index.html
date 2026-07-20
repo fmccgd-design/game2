@@ -71,7 +71,7 @@
 <body>
 <div class="wrap">
   <h1>아레나 슈팅 대결</h1>
-  <p class="subtitle">이동하고 조준해서 마지막까지 살아남으세요 (최대 5인)</p>
+  <p class="subtitle">이동하고 조준해서 마지막까지 살아남으세요 (최대 15인)</p>
 
   <div class="panel" id="lobby">
     <div class="row"><input type="text" id="nameInput" placeholder="닉네임 (선택, 최대 10자)" maxlength="10"></div>
@@ -153,8 +153,8 @@ const SPAWN_RADIUS=220;
 const ZONE_R=70;
 const WIN_SCORE=20;
 const EXPLOSION_R=60, MINE_DMG=32;
-const MAX_PLAYERS=5;
-const COLORS=['#3B7DD8','#D8543B','#3BD87D','#D8C93B','#B23BD8'];
+const MAX_PLAYERS=15;
+const COLORS=['#3B7DD8','#D8543B','#3BD87D','#D8C93B','#B23BD8','#3BD8CB','#D83B7D','#8CD83B','#D88B3B','#5C5CE0','#E0DCC8','#3B4ED8','#D83B3B','#3BAAD8','#D83BC0'];
 const TEAM_COLORS={red:'#D8543B', blue:'#3B7DD8'};
 
 const MAPS=[
@@ -284,7 +284,7 @@ function drawPlayerShape(ctx, p){
 /* ===================== 상태 ===================== */
 let peer=null;
 let isHost=false;
-let myPlayerId=null;      // 'P1' ~ 'P5'
+let myPlayerId=null;      // 'P1' ~ 'P15'
 let hostConn=null;        // 참가자 전용: 방장과의 연결
 let connections={};       // 방장 전용: {playerId: conn}
 let roster=[];            // [{id,name,color,team,ability}]
@@ -1297,7 +1297,7 @@ document.getElementById('connectBtn').onclick=()=>{
     c.on('data', data=>{
       if(!data || !data.type) return;
       if(data.type==='full'){
-        document.getElementById('connStatus').textContent='방이 가득 찼습니다 (최대 5인).';
+        document.getElementById('connStatus').textContent='방이 가득 찼습니다 (최대 15인).';
       } else if(data.type==='welcome'){
         myPlayerId=data.playerId;
         roster=data.roster;
